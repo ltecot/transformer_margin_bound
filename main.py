@@ -10,18 +10,36 @@ from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from datetime import datetime
 import wandb
 # from vit_pytorch import ViT
-from vit_pytorch.vit_for_small_dataset import ViT
+# from vit_pytorch.vit_for_small_dataset import ViT
+import torchvision.models as models
+from torchvision.models import resnet50
+# from vit_pytorch.distill import DistillableViT, DistillWrapper
+from vit import ViT
 
 def tiny_imagenet_dataset():
     subdir_train = 'datasets/tiny-imagenet-200/train'
     subdir_test = 'datasets/tiny-imagenet-200/val/images'
     transform = transforms.Compose([
+        transforms.Resize(64),
+        # transforms.CenterCrop(56),
+        transforms.RandomCrop(56),
         # transforms.Resize(256),
         # transforms.CenterCrop(224),
+        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
+        transforms.RandomErasing(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     train_dataset = datasets.ImageFolder(subdir_train, transform=transform)
+    transform = transforms.Compose([
+        transforms.Resize(64),
+        transforms.CenterCrop(56),
+        # transforms.Resize(256),
+        # transforms.CenterCrop(224),
+        # transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
     test_dataset = datasets.ImageFolder(subdir_test, transform=transform)
     return train_dataset, test_dataset
 
@@ -39,13 +57,18 @@ def imagenet_dataset():
     return train_set, test_set
 
 def cifar10_dataset():
-    transform = transforms.Compose(
+    train_transform = transforms.Compose(
+        [transforms.ToTensor(),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomErasing(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))])
+    test_transform = transforms.Compose(
         [transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))])
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True, transform=transform)
+                                            download=True, transform=train_transform)
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
-                                        download=True, transform=transform)
+                                        download=True, transform=test_transform)
     return trainset, testset
 
 def main():
@@ -54,27 +77,31 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'tiny_imagenet', # 'Imagenet', # 'CIFAR10'
-        'batch_size' : 256,
-        'epochs' : 200,
-        'lr' : 25e-5,
+        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'Imagenet', # 'CIFAR10'
+        'batch_size' : 128,
+        'epochs' : 500,
+        'lr' : 1e-4,
         # 'gamma' : 0.99,
         'print_interval' : 10,
-        'save_interval' : 50,
-        'image_size' : 64,
-        'patch_size' : 8,
-        'num_classes' : 200,
-        'dim' : 192,
-        'depth' : 9,
+        'save_interval' : 100,
+        'image_size' : 32, # 56,
+        'patch_size' : 2,
+        'num_classes' : 10, # 200,
+        'dim' : 256,
+        'depth' : 6,
         # 'weight_decay' : 0.005,
         # First depth elements are for layers, first to last. Last element is for all other parameters
-        # 'weight_decay' : [5e-1, 5e-2, 5e-3, 5e-4, 5e-5, 5e-6, 5e-7, 5e-8, 5e-9, 5e-5], 
+        # 'weight_decay' : [5e-1, 5e-2, 5e-3, 5e-4, 5e-5, 5e-6, 5e-7, 5e-8, 5e-9, 5e-10], 
+        # 'weight_decay' : [0.75, 0.25, 0.075, 0.025, 0.0075, 0.0025, 0.00075, 0.00075, 0.000025, 5e-2], 
         'weight_decay' : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  
-        # 'weight_decay' : [5e-5, 5e-5, 5e-5, 5e-5, 5e-5, 5e-5, 5e-5, 5e-5, 5e-5, 5e-5],  
-        'heads' : 12,
-        'mlp_dim' : 192,
-        'dropout' : 0,
-        'emb_dropout' : 0,
+        # 'weight_decay' : [5e-3, 5e-3, 5e-3, 5e-3, 5e-3, 5e-3, 5e-3, 5e-3, 5e-3, 5e-3],  
+        # 'weight_decay' : [5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2],  
+        'heads' : 9, # 12,
+        'mlp_dim' : 256,
+        'dropout' : 0.1,
+        'emb_dropout' : 0.1,
+        'spectral_norm_frequency' : 10,
+        'spectral_norm_caps' : [0.5, 0.6, 0.7, 0.8, 0.9, 1],
         'num_workers' : 4,
     }
 
@@ -89,6 +116,28 @@ def main():
         dropout = config['dropout'],
         emb_dropout = config['emb_dropout']
     ).to(device)
+
+    # teacher = resnet50(pretrained = True)
+
+    # net = DistillableViT(
+    #     image_size = config['image_size'],
+    #     patch_size = config['patch_size'],
+    #     num_classes = config['num_classes'],
+    #     dim = config['dim'],
+    #     depth = config['depth'],
+    #     heads = config['heads'],
+    #     mlp_dim = config['mlp_dim'],
+    #     dropout = config['dropout'],
+    #     emb_dropout = config['emb_dropout']
+    # ).to(device)
+
+    # distiller = DistillWrapper(
+    #     student = net,
+    #     teacher = teacher,
+    #     temperature = 3,           # temperature of distillation
+    #     alpha = 0.5,               # trade between main loss and distillation loss
+    #     hard = False               # whether to use soft or hard distillation
+    # ).to(device)
 
     if config['dataset'] == 'Imagenet':
         trainset, testset = imagenet_dataset()
@@ -107,6 +156,7 @@ def main():
     layer_params = [set() for _ in range(config['depth'])]
     # wd_params = set()
     for i, layer in enumerate(net.transformer.layers):
+    # for i, layer in enumerate(distiller.student.transformer.layers):
         for p in layer.parameters():
             layer_params[i].add(p)
         # for m in layer.modules():
@@ -120,8 +170,9 @@ def main():
     criterion = nn.CrossEntropyLoss()
     # optimizer = optim.Adam(net.parameters(), lr=config['lr'], weight_decay=config['weight_decay'])
     optimizer = optim.Adam(optim_list, lr=config['lr'])
+    # optimizer = optim.Adam(net.parameters(), lr=config['lr'])
     # scheduler = StepLR(optimizer, step_size=1, gamma=config['gamma'])
-    scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs'])
+    scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs']//2)
 
     # for m in net.modules():
     #     print(m)
@@ -154,12 +205,17 @@ def main():
             # forward + backward + optimize
             outputs = net(inputs)
             loss = criterion(outputs, labels)
+            # loss = distiller(inputs, labels)
             loss.backward()
             optimizer.step()
 
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+
+            # Spectral clipping
+            if i % config['spectral_norm_frequency'] == config['spectral_norm_frequency']-1:
+                net.spectral_clipping(config['spectral_norm_caps'])
 
             # print statistics
             running_loss += loss.item()
@@ -168,8 +224,8 @@ def main():
                 wandb.log({"training/running_loss": running_loss / config['print_interval']})
                 running_loss = 0.0
 
-        print(f'Accuracy of train images: {100 * correct // total} %')
-        wandb.log({"training/train_accuracy": 100 * correct // total, "Epoch": epoch})
+        print(f'Accuracy of train images: {100 * correct / total} %')
+        wandb.log({"training/train_accuracy": 100 * correct / total, "Epoch": epoch})
 
         net.eval()
         correct = 0
@@ -184,8 +240,8 @@ def main():
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-        print(f'Accuracy of test images: {100 * correct // total} %')
-        wandb.log({"testing/test_accuracy": 100 * correct // total, "Epoch": epoch})
+        print(f'Accuracy of test images: {100 * correct / total} %')
+        wandb.log({"testing/test_accuracy": 100 * correct / total, "Epoch": epoch})
 
         if epoch % config['save_interval'] == config['save_interval']-1:
             now = datetime.now()
