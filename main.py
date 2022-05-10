@@ -59,8 +59,8 @@ def imagenet_dataset():
 def cifar10_dataset():
     train_transform = transforms.Compose(
         [transforms.ToTensor(),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomErasing(),
+        # transforms.RandomHorizontalFlip(),
+        # transforms.RandomErasing(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))])
     test_transform = transforms.Compose(
         [transforms.ToTensor(),
@@ -79,7 +79,7 @@ def main():
     config = {
         'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'Imagenet', # 'CIFAR10'
         'batch_size' : 128,
-        'epochs' : 500,
+        'epochs' : 1000,
         'lr' : 1e-4,
         # 'gamma' : 0.99,
         'print_interval' : 10,
@@ -98,10 +98,10 @@ def main():
         # 'weight_decay' : [5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2, 5e-2],  
         'heads' : 9, # 12,
         'mlp_dim' : 256,
-        'dropout' : 0.1,
-        'emb_dropout' : 0.1,
-        'spectral_norm_frequency' : 10,
-        'spectral_norm_caps' : [0.5, 0.6, 0.7, 0.8, 0.9, 1],
+        'dropout' : 0,
+        'emb_dropout' : 0,
+        'spectral_norm_frequency' : 0,  # if less than or equal to 0, no normalization
+        'spectral_norm_caps' : [0.95, 0.96, 0.97, 0.98, 0.99, 1],
         'num_workers' : 4,
     }
 
@@ -172,7 +172,7 @@ def main():
     optimizer = optim.Adam(optim_list, lr=config['lr'])
     # optimizer = optim.Adam(net.parameters(), lr=config['lr'])
     # scheduler = StepLR(optimizer, step_size=1, gamma=config['gamma'])
-    scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs']//2)
+    scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs'])
 
     # for m in net.modules():
     #     print(m)
@@ -214,7 +214,7 @@ def main():
             correct += (predicted == labels).sum().item()
 
             # Spectral clipping
-            if i % config['spectral_norm_frequency'] == config['spectral_norm_frequency']-1:
+            if config['spectral_norm_frequency'] > 0 and i % config['spectral_norm_frequency'] == config['spectral_norm_frequency']-1:
                 net.spectral_clipping(config['spectral_norm_caps'])
 
             # print statistics
