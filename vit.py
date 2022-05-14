@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import numpy as np
+import math 
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
@@ -68,15 +69,15 @@ class Transformer(nn.Module):
         self.layers = nn.ModuleList([])
         for _ in range(depth):
             self.layers.append(nn.ModuleList([
-                # PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
-                # PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
-                Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout),
-                FeedForward(dim, mlp_dim, dropout = dropout)
+                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
+                # Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout),
+                # FeedForward(dim, mlp_dim, dropout = dropout)
             ]))
     def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x) # + x
-            x = ff(x) # + x
+            x = attn(x) + x
+            x = ff(x) + x
         return x
 
 class ViT(nn.Module):
@@ -110,6 +111,22 @@ class ViT(nn.Module):
             nn.Linear(dim, num_classes)
         )
 
+        self.depth = depth
+        self.dim = dim
+        self.rho_sfmx = math.sqrt(dim - 1) / (self.dim * math.sqrt(dim_head))
+        self.q_sn = [None] * depth
+        self.k_sn = [None] * depth
+        self.v_sn = [None] * depth
+        self.w_sn = [None] * depth
+        self.wp_sn = [None] * depth
+        self.q_fn = [None] * depth
+        self.k_fn = [None] * depth
+        self.v_fn = [None] * depth
+        self.w_fn = [None] * depth
+        self.wp_fn = [None] * depth
+        self.spectral_norm_precompute = None
+        self.spectral_precompute = None
+
     # TODO: Is it ok to do the spectral of the concatted qkv matrix? Or have to seperate?
     def spectral_clipping(self, clip_caps): # clip_percent
         with torch.no_grad():
@@ -118,6 +135,40 @@ class ViT(nn.Module):
                 module[0].fn.to_qkv.weight[:] = cap * module[0].fn.to_qkv.weight / np.linalg.norm(module[0].fn.to_qkv.weight.cpu(), ord=2)
                 module[1].fn.net[0].weight[:] = cap * module[1].fn.net[0].weight / np.linalg.norm(module[1].fn.net[0].weight.cpu(), ord=2)
                 module[1].fn.net[3].weight[:] = cap * module[1].fn.net[3].weight / np.linalg.norm(module[1].fn.net[3].weight.cpu(), ord=2)
+
+    def update_spectral_terms(self):
+        with torch.no_grad():
+            self.spectral_precompute = 1
+            self.spectral_norm_precompute = 0
+            for i, module in enumerate(self.transformer.layers):
+                qkv = module[0].fn.to_qkv.weight.chunk(3, dim = -1)
+                # Spectral norms
+                self.q_sn[i] = np.linalg.norm(qkv[0].cpu(), ord=2)
+                self.k_sn[i] = np.linalg.norm(qkv[1].cpu(), ord=2)
+                self.v_sn[i] = np.linalg.norm(qkv[2].cpu(), ord=2)
+                self.w_sn[i] = np.linalg.norm(module[1].fn.net[0].weight.cpu(), ord=2)
+                self.wp_sn[i] = np.linalg.norm(module[1].fn.net[3].weight.cpu(), ord=2)
+                # Frobenius norms
+                self.q_fn[i] = np.linalg.norm(qkv[0].cpu(), ord=None)
+                self.k_fn[i] = np.linalg.norm(qkv[1].cpu(), ord=None)
+                self.v_fn[i] = np.linalg.norm(qkv[2].cpu(), ord=None)
+                self.w_fn[i] = np.linalg.norm(module[1].fn.net[0].weight.cpu(), ord=None)
+                self.wp_fn[i] = np.linalg.norm(module[1].fn.net[3].weight.cpu(), ord=None)
+                self.spectral_norm_precompute += ((self.q_sn[i]/self.q_fn[i])**(2.0/3) + (self.k_sn[i]/self.k_fn[i])**(2.0/3) + (self.v_sn[i]/self.v_fn[i])**(2.0/3) + 
+                                                (self.w_sn[i]/self.w_fn[i])**(2.0/3) + (self.wp_sn[i]/self.wp_fn[i])**(2.0/3))
+                self.spectral_precompute *= (self.q_sn[i] * self.k_sn[i] * self.v_sn[i] * self.w_sn[i] * self.wp_sn[i] * self.rho_sfmx) ** (2 ** (self.depth - i))
+
+    # Must be batch size 1
+    def spectral_complexity(self, x):
+        with torch.no_grad():
+            x = torch.squeeze(self.to_patch_embedding(x))
+            xsn = np.linalg.norm(x.cpu(), ord=2)
+            xfn = np.linalg.norm(x.cpu(), ord=None)
+            spectral_term = self.spectral_precompute * xfn * (xsn ** (2 ** self.depth))
+            spectral_norm_term = self.spectral_norm_precompute + self.depth * 2 * (xfn/xsn)**(2.0/3)
+            spectral_norm_term = spectral_norm_term ** (3.0/2)
+            spectral_complex = spectral_term * spectral_norm_term
+            return spectral_complex
 
     def forward(self, img):
         x = self.to_patch_embedding(img)

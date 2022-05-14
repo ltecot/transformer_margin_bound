@@ -6,12 +6,15 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import seaborn as sns
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 from datetime import datetime
 import wandb
 import torchvision.models as models
 from torchvision.models import resnet50
 from vit import ViT
+import matplotlib.pyplot as plt
+import math 
 
 def tiny_imagenet_dataset():
     subdir_train = 'datasets/tiny-imagenet-200/train'
@@ -70,10 +73,13 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'tiny_imagenet', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'dataset' : 'MNIST', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'margin_file_name' : 'mnist_margins',
+        'model_name' : 'models/net_epoch_109_2022:05:11:13:47:39.pth',
+        'run_path' : 'ltecot/transformer_margin/runs/1v0m6irz',
         'weight_decay' : 0,  
         # 'num_classes' : 10, # 10, 100, 200
-        'batch_size' : 128,
+        'batch_size' : 1,
         'epochs' : 1000,
         'lr' : 1e-3,
         # 'gamma' : 0.99,
@@ -128,76 +134,35 @@ def main():
 
     loader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'],
                                          shuffle=True, num_workers=config['num_workers'])
+    model_weights = wandb.restore(config['model_name'], run_path=config['run_path'])
+    # net.load_weights(model_weights.name)
+    net.load_state_dict(torch.load(model_weights.name))
+    net.eval()
+    net.update_spectral_terms()
+    margins = []
+    spectral_complexity = 0
+    print(len(loader))
+    with torch.no_grad():
+        for i, data in enumerate(loader):
+            images, labels = data[0].to(device), data[1].to(device)
+            outputs = net(images)
+            label_prob = outputs.data[:, labels]  # label probs
+            outputs.data[:, labels] = float("-Inf")
+            next_prob, _ = torch.max(outputs.data, 1)
+            m = label_prob - next_prob
+            margins.append(m)
+            spectral_complexity = max(net.spectral_complexity(images), spectral_complexity)
+            print(str(i))
+    margins = torch.cat(margins, 0)
+    n = len(loader) 
+    w = max(config['dim'], config['mlp_dim'], (config['image_size'] / config['patch_size'])**2)
+    spectral_complexity = spectral_complexity * torch.log(n) * w * torch.log(w) / n
+    margins /= spectral_complexity
 
-    criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.SGD(net.parameters(), lr=config['lr'], weight_decay=config['weight_decay'])
-    optimizer = optim.Adam(net.parameters(), lr=config['lr'], weight_decay=config['weight_decay'])
-    scheduler = CosineAnnealingLR(optimizer, T_max=config['epochs'])
+    # ax = sns.kdeplot(margins, shade=True, color="r")
+    # plt.show()
 
-    wandb.init(project="transformer_margin", entity="ltecot", config=config)
-
-    for epoch in range(config['epochs']):  # loop over the dataset multiple times
-        net.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        for i, data in enumerate(loader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data[0].to(device), data[1].to(device)
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            # loss = distiller(inputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-            # Spectral clipping
-            # if config['spectral_norm_frequency'] > 0 and i % config['spectral_norm_frequency'] == config['spectral_norm_frequency']-1:
-            #     net.spectral_clipping(config['spectral_norm_caps'])
-
-            # print statistics
-            running_loss += loss.item()
-            if i % config['print_interval'] == config['print_interval']-1:    # print every 2000 mini-batches
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / config["print_interval"]:.3f}')
-                wandb.log({"training/running_loss": running_loss / config['print_interval']})
-                running_loss = 0.0
-
-        print(f'Accuracy of train images: {100 * correct / total} %')
-        wandb.log({"training/train_accuracy": 100 * correct / total, "Epoch": epoch})
-
-        # net.eval()
-        # correct = 0
-        # total = 0
-        # with torch.no_grad():
-        #     for data in testloader:
-        #         images, labels = data[0].to(device), data[1].to(device)
-        #         # calculate outputs by running images through the network
-        #         outputs = net(images)
-        #         # the class with the highest energy is what we choose as prediction
-        #         _, predicted = torch.max(outputs.data, 1)
-        #         total += labels.size(0)
-        #         correct += (predicted == labels).sum().item()
-
-        # print(f'Accuracy of test images: {100 * correct / total} %')
-        # wandb.log({"testing/test_accuracy": 100 * correct / total, "Epoch": epoch})
-
-        if epoch % config['save_interval'] == config['save_interval']-1:
-            now = datetime.now()
-            dt_string = now.strftime("%Y:%m:%d:%H:%M:%S")
-            PATH = './models/net_epoch_' + str(epoch+1) + '_' + dt_string + '.pth'
-            torch.save(net.state_dict(), PATH)
-            # wandb.save("model_weights_epoch_"+str(epoch)+".pt")
-            wandb.save(PATH)
-
-    print('Finished Training')
+    torch.save(margins, 'margin_files/' + config['margin_file_name'] + '.pt')
 
 if __name__ == "__main__":
     main()
