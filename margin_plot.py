@@ -21,7 +21,7 @@ def tiny_imagenet_dataset():
     subdir_test = 'datasets/tiny-imagenet-200/val/images'
     transform = transforms.Compose([
         # transforms.Resize(64),
-        transforms.Resize(32),
+        transforms.Resize(28),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -41,7 +41,8 @@ def imagenet_dataset():
 
 def cifar10_dataset():
     train_transform = transforms.Compose(
-        [transforms.ToTensor(),
+        [transforms.Resize(28),
+        transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))])
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform=train_transform)
@@ -49,7 +50,8 @@ def cifar10_dataset():
 
 def cifar100_dataset():
     train_transform = transforms.Compose(
-        [transforms.ToTensor(),
+        [transforms.Resize(28),
+        transforms.ToTensor(),
         transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))])
     trainset = torchvision.datasets.CIFAR100(root='./data', train=True,
                                             download=True, transform=train_transform)
@@ -73,24 +75,24 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'MNIST', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'margin_file_name' : 'mnist_margins',
-        'model_name' : 'models/net_epoch_109_2022:05:11:13:47:39.pth',
-        'run_path' : 'ltecot/transformer_margin/runs/1v0m6irz',
+        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'margin_file_name' : 'cifar10_margins',
+        'model_name' : 'models/net_epoch_20.pth',
+        'run_path' : 'ltecot/transformer_margin/runs/2z5oeixr', # mahwlam4 mnist, 2z5oeixr cifar10
         'weight_decay' : 0,  
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 1,
         'epochs' : 1000,
-        'lr' : 1e-3,
+        'lr' : 1e-4,
         # 'gamma' : 0.99,
         'print_interval' : 10,
         'save_interval' : 10,
         # 'image_size' : 28, # 32, 64, 28
         'patch_size' : 2,
-        'dim' : 1024,
-        'depth' : 6,
+        'dim' : 2048,
+        'depth' : 2,
         'heads' : 1, # 9, # 12,
-        'mlp_dim' : 1024,
+        'mlp_dim' : 2048,
         'dropout' : 0.1,
         'emb_dropout' : 0.1,
         'num_workers' : 4,
@@ -105,12 +107,12 @@ def main():
         config['channels'] = 3
     elif config['dataset'] == 'CIFAR10':
         trainset = cifar10_dataset()
-        config['image_size'] = 32
+        config['image_size'] = 28
         config['num_classes'] = 10
         config['channels'] = 3
     elif config['dataset'] == 'CIFAR100':
         trainset = cifar100_dataset()
-        config['image_size'] = 32
+        config['image_size'] = 28
         config['num_classes'] = 100
         config['channels'] = 3
     elif config['dataset'] == 'MNIST':
@@ -156,7 +158,7 @@ def main():
     margins = torch.cat(margins, 0)
     n = len(loader) 
     w = max(config['dim'], config['mlp_dim'], (config['image_size'] / config['patch_size'])**2)
-    spectral_complexity = spectral_complexity * torch.log(n) * w * torch.log(w) / n
+    spectral_complexity = spectral_complexity * math.log(n) * w * math.log(w) / n
     margins /= spectral_complexity
 
     # ax = sns.kdeplot(margins, shade=True, color="r")

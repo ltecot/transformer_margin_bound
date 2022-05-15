@@ -113,7 +113,8 @@ class ViT(nn.Module):
 
         self.depth = depth
         self.dim = dim
-        self.rho_sfmx = math.sqrt(dim - 1) / (self.dim * math.sqrt(dim_head))
+        self.num_tokens = num_patches
+        self.rho_sfmx = math.sqrt(self.num_tokens - 1) / (self.num_tokens * math.sqrt(dim_head))
         self.q_sn = [None] * depth
         self.k_sn = [None] * depth
         self.v_sn = [None] * depth
@@ -154,8 +155,8 @@ class ViT(nn.Module):
                 self.v_fn[i] = np.linalg.norm(qkv[2].cpu(), ord=None)
                 self.w_fn[i] = np.linalg.norm(module[1].fn.net[0].weight.cpu(), ord=None)
                 self.wp_fn[i] = np.linalg.norm(module[1].fn.net[3].weight.cpu(), ord=None)
-                self.spectral_norm_precompute += ((self.q_sn[i]/self.q_fn[i])**(2.0/3) + (self.k_sn[i]/self.k_fn[i])**(2.0/3) + (self.v_sn[i]/self.v_fn[i])**(2.0/3) + 
-                                                (self.w_sn[i]/self.w_fn[i])**(2.0/3) + (self.wp_sn[i]/self.wp_fn[i])**(2.0/3))
+                self.spectral_norm_precompute += ((self.q_fn[i]/self.q_sn[i])**(2.0/3) + (self.k_fn[i]/self.k_sn[i])**(2.0/3) + (self.v_fn[i]/self.v_sn[i])**(2.0/3) + 
+                                                (self.w_fn[i]/self.w_sn[i])**(2.0/3) + (self.wp_fn[i]/self.wp_sn[i])**(2.0/3))
                 self.spectral_precompute *= (self.q_sn[i] * self.k_sn[i] * self.v_sn[i] * self.w_sn[i] * self.wp_sn[i] * self.rho_sfmx) ** (2 ** (self.depth - i))
 
     # Must be batch size 1

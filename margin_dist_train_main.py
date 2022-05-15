@@ -18,7 +18,7 @@ def tiny_imagenet_dataset():
     subdir_test = 'datasets/tiny-imagenet-200/val/images'
     transform = transforms.Compose([
         # transforms.Resize(64),
-        transforms.Resize(32),
+        transforms.Resize(28),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -38,7 +38,8 @@ def imagenet_dataset():
 
 def cifar10_dataset():
     train_transform = transforms.Compose(
-        [transforms.ToTensor(),
+        [transforms.Resize(28),
+        transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))])
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform=train_transform)
@@ -46,7 +47,8 @@ def cifar10_dataset():
 
 def cifar100_dataset():
     train_transform = transforms.Compose(
-        [transforms.ToTensor(),
+        [transforms.Resize(28),
+        transforms.ToTensor(),
         transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))])
     trainset = torchvision.datasets.CIFAR100(root='./data', train=True,
                                             download=True, transform=train_transform)
@@ -75,16 +77,16 @@ def main():
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 128,
         'epochs' : 1000,
-        'lr' : 1e-3,
+        'lr' : 1e-4,
         # 'gamma' : 0.99,
         'print_interval' : 10,
         'save_interval' : 10,
         # 'image_size' : 28, # 32, 64, 28
         'patch_size' : 2,
-        'dim' : 1024,
-        'depth' : 6,
+        'dim' : 2048,
+        'depth' : 2,
         'heads' : 1, # 9, # 12,
-        'mlp_dim' : 1024,
+        'mlp_dim' : 2048,
         'dropout' : 0.1,
         'emb_dropout' : 0.1,
         'num_workers' : 4,
@@ -94,17 +96,17 @@ def main():
         trainset = imagenet_dataset()
     elif config['dataset'] == 'tiny_imagenet':
         trainset = tiny_imagenet_dataset()
-        config['image_size'] = 32
+        config['image_size'] = 28
         config['num_classes'] = 200
         config['channels'] = 3
     elif config['dataset'] == 'CIFAR10':
         trainset = cifar10_dataset()
-        config['image_size'] = 32
+        config['image_size'] = 28
         config['num_classes'] = 10
         config['channels'] = 3
     elif config['dataset'] == 'CIFAR100':
         trainset = cifar100_dataset()
-        config['image_size'] = 32
+        config['image_size'] = 28
         config['num_classes'] = 100
         config['channels'] = 3
     elif config['dataset'] == 'MNIST':
