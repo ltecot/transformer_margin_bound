@@ -15,6 +15,7 @@ from torchvision.models import resnet50
 from vit import ViT
 import matplotlib.pyplot as plt
 import math 
+import random
 
 def tiny_imagenet_dataset():
     subdir_train = 'datasets/tiny-imagenet-200/train'
@@ -68,6 +69,9 @@ def mnist_dataset():
 
 # rand labels
 # target_transform=lambda y: torch.randint(0, 10, (1,)).item(),
+# cifar10 net_epoch_200_2022:05:15:06:57:42.pth
+# cifar100 net_epoch_200_2022:05:15:07:00:18.pth
+# mnist net_epoch_200_2022:05:15:08:33:21.pth
 
 def main():
 
@@ -75,10 +79,12 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'margin_file_name' : 'cifar10_margins',
-        'model_name' : 'models/net_epoch_20.pth',
-        'run_path' : 'ltecot/transformer_margin/runs/2z5oeixr', # mahwlam4 mnist, 2z5oeixr cifar10
+        'dataset' : 'CIFAR100', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'margin_file_name' : 'cifar100_margins',
+        'model_name' : 'models/net_epoch_200_2022:05:15:07:00:18.pth',
+        'run_path' : 'ltecot/transformer_margin/runs/2onvb2i8', # 2q0ja0s6 mnist, 395nx36c cifar10, 2onvb2i8 cifar100
+        'data_limit' : 50000,  # So amount of data is uniform between mnist and cifar
+        'x_rand_sample' : 0.01,  # percent of time to randomly sample x. Hopefully get max margin this way
         'weight_decay' : 0,  
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 1,
@@ -146,6 +152,8 @@ def main():
     print(len(loader))
     with torch.no_grad():
         for i, data in enumerate(loader):
+            if i > config['data_limit']:
+                break
             images, labels = data[0].to(device), data[1].to(device)
             outputs = net(images)
             label_prob = outputs.data[:, labels]  # label probs
@@ -153,12 +161,14 @@ def main():
             next_prob, _ = torch.max(outputs.data, 1)
             m = label_prob - next_prob
             margins.append(m)
-            spectral_complexity = max(net.spectral_complexity(images), spectral_complexity)
+            if random.uniform(0, 1) < config['x_rand_sample']:
+                spectral_complexity = max(net.spectral_complexity(images), spectral_complexity)
             print(str(i))
     margins = torch.cat(margins, 0)
-    n = len(loader) 
+    n = min(len(loader), config['data_limit'])
     w = max(config['dim'], config['mlp_dim'], (config['image_size'] / config['patch_size'])**2)
-    spectral_complexity = spectral_complexity * math.log(n) * w * math.log(w) / n
+    # Should be configured now such that n and w are identical across datasets
+    # spectral_complexity = spectral_complexity * math.log(n) * w * math.log(w) / n
     margins /= spectral_complexity
 
     # ax = sns.kdeplot(margins, shade=True, color="r")

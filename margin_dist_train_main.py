@@ -72,8 +72,8 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'tiny_imagenet', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'weight_decay' : 0,  
+        'dataset' : 'CIFAR100', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'weight_decay' : 1e-4,  
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 128,
         'epochs' : 1000,
@@ -194,7 +194,7 @@ def main():
         if epoch % config['save_interval'] == config['save_interval']-1:
             now = datetime.now()
             dt_string = now.strftime("%Y:%m:%d:%H:%M:%S")
-            PATH = './models/net_epoch_' + str(epoch+1) + '_' + dt_string + '.pth'
+            PATH = './models/net_epoch_' + str(epoch+1) + '.pth'
             torch.save(net.state_dict(), PATH)
             # wandb.save("model_weights_epoch_"+str(epoch)+".pt")
             wandb.save(PATH)
