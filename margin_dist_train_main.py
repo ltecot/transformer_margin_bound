@@ -12,56 +12,8 @@ import wandb
 import torchvision.models as models
 from torchvision.models import resnet50
 from vit import ViT
+from datasets import mnist_dataset, cifar100_dataset, cifar10_dataset, RandomizedDataset
 
-def tiny_imagenet_dataset():
-    subdir_train = 'datasets/tiny-imagenet-200/train'
-    subdir_test = 'datasets/tiny-imagenet-200/val/images'
-    transform = transforms.Compose([
-        # transforms.Resize(64),
-        transforms.Resize(28),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-    train_dataset = datasets.ImageFolder(subdir_train, transform=transform)
-    return train_dataset
-
-def imagenet_dataset():
-    subdir = "../rand_smoothing_indep_vars/datasets/imagenet"  # CUSTOM: Change filepath
-    transform = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-    dataset = datasets.ImageFolder(subdir, transform)
-    return dataset
-
-def cifar10_dataset():
-    train_transform = transforms.Compose(
-        [transforms.Resize(28),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))])
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                            download=True, transform=train_transform)
-    return trainset
-
-def cifar100_dataset():
-    train_transform = transforms.Compose(
-        [transforms.Resize(28),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))])
-    trainset = torchvision.datasets.CIFAR100(root='./data', train=True,
-                                            download=True, transform=train_transform)
-    return trainset
-
-def mnist_dataset():
-    train_transform = transforms.Compose(
-        [transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261))
-        ])
-    trainset = torchvision.datasets.MNIST(root='./data', train=True,
-                                            download=True, transform=train_transform)
-    return trainset
 
 # rand labels
 # target_transform=lambda y: torch.randint(0, 10, (1,)).item(),
@@ -72,8 +24,9 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'weight_decay' : 1e-6,  
+        'dataset' : 'CIFAR100', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'weight_decay' : 0,  
+        'random_labels' : True,
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 128,
         'epochs' : 1000,
@@ -127,6 +80,9 @@ def main():
         emb_dropout = config['emb_dropout'],
         channels = config['channels']
     ).to(device)
+
+    if config['random_labels']:
+        trainset = RandomizedDataset(trainset)
 
     loader = torch.utils.data.DataLoader(trainset, batch_size=config['batch_size'],
                                          shuffle=True, num_workers=config['num_workers'])
