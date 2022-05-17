@@ -72,8 +72,8 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'CIFAR100', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'weight_decay' : 1e-4,  
+        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'weight_decay' : 1e-6,  
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 128,
         'epochs' : 1000,

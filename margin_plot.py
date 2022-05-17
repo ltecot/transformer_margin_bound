@@ -72,6 +72,7 @@ def mnist_dataset():
 # cifar10 net_epoch_200_2022:05:15:06:57:42.pth
 # cifar100 net_epoch_200_2022:05:15:07:00:18.pth
 # mnist net_epoch_200_2022:05:15:08:33:21.pth
+# 2q0ja0s6 mnist, 395nx36c cifar10, 2onvb2i8 cifar100
 
 def main():
 
@@ -79,12 +80,12 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'CIFAR100', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'margin_file_name' : 'cifar100_margins',
-        'model_name' : 'models/net_epoch_200_2022:05:15:07:00:18.pth',
-        'run_path' : 'ltecot/transformer_margin/runs/2onvb2i8', # 2q0ja0s6 mnist, 395nx36c cifar10, 2onvb2i8 cifar100
-        'data_limit' : 50000,  # So amount of data is uniform between mnist and cifar
-        'x_rand_sample' : 0.01,  # percent of time to randomly sample x. Hopefully get max margin this way
+        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'margin_file_name' : 'cifar10_margins_3',
+        'model_name' : 'models/net_epoch_200_2022:05:15:06:57:42.pth',
+        'run_path' : 'ltecot/transformer_margin/runs/395nx36c',
+        'data_limit' : 1000000,  # So amount of data is uniform between mnist and cifar
+        'x_rand_sample' : 1,  # percent of time to randomly sample x. Hopefully get max margin this way
         'weight_decay' : 0,  
         # 'num_classes' : 10, # 10, 100, 200
         'batch_size' : 1,
@@ -168,7 +169,7 @@ def main():
     n = min(len(loader), config['data_limit'])
     w = max(config['dim'], config['mlp_dim'], (config['image_size'] / config['patch_size'])**2)
     # Should be configured now such that n and w are identical across datasets
-    # spectral_complexity = spectral_complexity * math.log(n) * w * math.log(w) / n
+    spectral_complexity = spectral_complexity * math.log(n) * w * math.log(w) / n
     margins /= spectral_complexity
 
     # ax = sns.kdeplot(margins, shade=True, color="r")

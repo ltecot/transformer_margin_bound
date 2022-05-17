@@ -157,7 +157,7 @@ class ViT(nn.Module):
                 self.wp_fn[i] = np.linalg.norm(module[1].fn.net[3].weight.cpu(), ord=None)
                 self.spectral_norm_precompute += ((self.q_fn[i]/self.q_sn[i])**(2.0/3) + (self.k_fn[i]/self.k_sn[i])**(2.0/3) + (self.v_fn[i]/self.v_sn[i])**(2.0/3) + 
                                                 (self.w_fn[i]/self.w_sn[i])**(2.0/3) + (self.wp_fn[i]/self.wp_sn[i])**(2.0/3))
-                self.spectral_precompute *= (self.q_sn[i] * self.k_sn[i] * self.v_sn[i] * self.w_sn[i] * self.wp_sn[i] * self.rho_sfmx) ** (2 ** (self.depth - i))
+                self.spectral_precompute *= (self.q_sn[i] * self.k_sn[i] * self.v_sn[i] * self.w_sn[i] * self.wp_sn[i] * self.rho_sfmx) ** (2 ** (self.depth-i-1) - 1)
 
     # Must be batch size 1
     def spectral_complexity(self, x):
@@ -165,7 +165,7 @@ class ViT(nn.Module):
             x = torch.squeeze(self.to_patch_embedding(x))
             xsn = np.linalg.norm(x.cpu(), ord=2)
             xfn = np.linalg.norm(x.cpu(), ord=None)
-            spectral_term = self.spectral_precompute * xfn * (xsn ** (2 ** self.depth))
+            spectral_term = self.spectral_precompute * xfn * (xsn ** (2 ** self.depth - 1))
             spectral_norm_term = self.spectral_norm_precompute + self.depth * 2 * (xfn/xsn)**(2.0/3)
             spectral_norm_term = spectral_norm_term ** (3.0/2)
             spectral_complex = spectral_term * spectral_norm_term
