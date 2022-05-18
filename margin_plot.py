@@ -31,10 +31,10 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'CIFAR10', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
-        'margin_file_name' : 'cifar10_1e-4',
-        'model_name' : 'models/net_epoch_200.pth',
-        'run_path' : 'ltecot/transformer_margin/runs/1owy4hm1',
+        'dataset' : 'MNIST', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'margin_file_name' : 'mnist_4',
+        'model_name' : 'models/net_epoch_200_2022:05:15:08:33:21.pth',
+        'run_path' : 'ltecot/transformer_margin/runs/2q0ja0s6',
         'random_labels' : False,
         'data_limit' : 1000000,  # So amount of data is uniform between mnist and cifar
         'x_rand_sample' : 1,  # percent of time to randomly sample x. Hopefully get max margin this way
@@ -112,6 +112,7 @@ def main():
                 break
             images, labels = data[0].to(device), data[1].to(device)
             outputs = net(images)
+            # outputs = nn.Softmax(outputs, dim=-1)
             label_prob = outputs.data[:, labels]  # label probs
             outputs.data[:, labels] = float("-Inf")
             next_prob, _ = torch.max(outputs.data, 1)

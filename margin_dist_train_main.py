@@ -24,7 +24,7 @@ def main():
     print(device)
 
     config = {
-        'dataset' : 'CIFAR100', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
+        'dataset' : 'MNIST', # 'tiny_imagenet', # 'CIFAR100', # 'CIFAR10' 'MNIST'
         'weight_decay' : 0,  
         'random_labels' : True,
         # 'num_classes' : 10, # 10, 100, 200
@@ -80,6 +80,9 @@ def main():
         emb_dropout = config['emb_dropout'],
         channels = config['channels']
     ).to(device)
+
+    # print(net.to_patch_embedding[1].weight.shape)
+    # return
 
     if config['random_labels']:
         trainset = RandomizedDataset(trainset)
